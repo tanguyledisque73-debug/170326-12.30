@@ -1,0 +1,81 @@
+{
+  "summary": "Successfully tested 3 new features: Welcome email on registration, Formateur email sending, and Document management (upload/list/download/delete). All 16 backend tests passed. Frontend UI tested and working correctly. Fixed critical bug: db.groupes changed to db.groupes_formation and removed duplicate endpoint.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_documents_email.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/server.py"
+  ],
+  "success_rate": {
+    "backend": "100% (16/16 tests passed)",
+    "frontend": "100%"
+  },
+  "test_credentials": {
+    "admin": {
+      "email": "ledisque.tanguy73@hotmail.com",
+      "password": "Admin123!"
+    },
+    "test_formateur": {
+      "email": "TEST_formateur_docs2@test.com",
+      "password": "TestPass123!"
+    },
+    "test_stagiaire": {
+      "email": "TEST_stagiaire_docs2@test.com",
+      "password": "TestPass123!"
+    }
+  },
+  "seed_data_creation": "Test documents uploaded to group and stagiaire using TEST_ prefix",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All 3 new features are working: (1) Welcome email is sent asynchronously during stagiaire registration, (2) Formateurs can send emails to stagiaires via /formateur/send-email, (3) Document management is complete with upload (multipart/form-data), listing (by category), download, and delete. The uploads directory is /app/uploads/documents/. Fixed bug where db.groupes was used instead of db.groupes_formation.",
+  "features_tested": {
+    "welcome_email": {
+      "on_registration": "PASSED - Email sent asynchronously, doesn't block registration",
+      "admin_manual_send": "PASSED - Endpoint /admin/send-welcome-email works"
+    },
+    "formateur_send_email": {
+      "endpoint": "PASSED - POST /formateur/send-email with query params",
+      "validation": "PASSED - Missing params return 422",
+      "auth": "PASSED - Invalid token returns 401",
+      "email_sending": "PASSED - Uses Resend API with HTML template"
+    },
+    "document_management": {
+      "upload_to_groupe": "PASSED - POST /formateur/document/upload with multipart",
+      "upload_to_stagiaire": "PASSED - Individual document upload",
+      "formateur_list": "PASSED - GET /formateur/documents",
+      "stagiaire_list": "PASSED - GET /stagiaire/documents (shows group and individual docs)",
+      "download": "PASSED - GET /documents/{id}/download",
+      "delete": "PASSED - DELETE /formateur/document/{id}"
+    },
+    "frontend_ui": {
+      "formateur_documents_page": "PASSED - Upload form, document list, download/delete buttons",
+      "formateur_send_email_page": "PASSED - Email form with groupe selection help",
+      "stagiaire_documents_page": "PASSED - Category tabs (Tous, Cours, Certificats, Évaluations), download buttons",
+      "navigation_links": "PASSED - Documents and Envoyer email for formateurs, Mes documents for stagiaires"
+    }
+  },
+  "bugs_fixed": [
+    {
+      "issue": "Wrong MongoDB collection name in document upload endpoints",
+      "fix": "Changed db.groupes to db.groupes_formation in 3 places (lines 2190, 2202, 2301)",
+      "location": "/app/backend/server.py"
+    },
+    {
+      "issue": "Duplicate /formateur/send-email endpoint (one with body, one with query params)",
+      "fix": "Removed first duplicate that used EmailSendRequest body, kept query params version used by frontend",
+      "location": "/app/backend/server.py lines 1951-2002"
+    }
+  ]
+}
