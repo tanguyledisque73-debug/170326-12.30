@@ -522,12 +522,19 @@ async def get_all_formateurs(token: str):
     """Admin gets all formateurs"""
     await require_admin(token)
     
-    formateurs = await db.users.find({"role": "formateur"}, {"_id": 0, "password": 0}).to_list(1000)
-    
-    # Add group count for each formateur
-    for formateur in formateurs:
-        group_count = await db.groupes_formation.count_documents({"formateur_id": formateur["id"]})
-        formateur["nb_groupes"] = group_count
+    # Optimized: Use aggregation to get formateurs with group counts in single query
+    pipeline = [
+        {"$match": {"role": "formateur"}},
+        {"$lookup": {
+            "from": "groupes_formation",
+            "localField": "id",
+            "foreignField": "formateur_id",
+            "as": "groupes"
+        }},
+        {"$addFields": {"nb_groupes": {"$size": "$groupes"}}},
+        {"$project": {"groupes": 0, "password": 0, "_id": 0}}
+    ]
+    formateurs = await db.users.aggregate(pipeline).to_list(1000)
     
     return formateurs
 
@@ -771,12 +778,37 @@ async def get_groupe_detail(groupe_id: str, token: str):
     
     groupe["nb_stagiaires"] = await db.users.count_documents({"groupe_id": groupe_id})
     
-    # Get stagiaires list
-    stagiaires = await db.users.find({"groupe_id": groupe_id}, {"_id": 0, "password": 0}).to_list(100)
+    # Get stagiaires list with only required fields
+    stagiaires = await db.users.find(
+        {"groupe_id": groupe_id}, 
+        {"_id": 0, "password": 0, "id": 1, "nom": 1, "prenom": 1, "email": 1, "created_at": 1, "role": 1, "groupe_id": 1}
+    ).to_list(100)
     
-    # Get progress for each stagiaire
+    # Optimized: Batch fetch all progress and quiz stats in 2 queries instead of N+1
+    user_ids = [s["id"] for s in stagiaires]
+    
+    # Batch fetch progress
+    all_progress_list = await db.stagiaire_progress.find(
+        {"user_id": {"$in": user_ids}}, 
+        {"_id": 0}
+    ).to_list(100)
+    all_progress = {p["user_id"]: p for p in all_progress_list}
+    
+    # Batch fetch quiz stats using aggregation
+    quiz_stats_pipeline = [
+        {"$match": {"user_id": {"$in": user_ids}}},
+        {"$group": {
+            "_id": "$user_id",
+            "count": {"$sum": 1},
+            "avg_score": {"$avg": "$percentage"}
+        }}
+    ]
+    quiz_stats_list = await db.quiz_results.aggregate(quiz_stats_pipeline).to_list(100)
+    quiz_stats = {qs["_id"]: qs for qs in quiz_stats_list}
+    
+    # Assign data to stagiaires
     for stagiaire in stagiaires:
-        progress = await db.stagiaire_progress.find_one({"user_id": stagiaire["id"]}, {"_id": 0})
+        progress = all_progress.get(stagiaire["id"])
         if progress:
             stagiaire["chapitres_completes"] = len(progress.get("chapitres_completes", []))
             stagiaire["chapitres_debloques"] = len(progress.get("chapitres_debloques", []))
@@ -784,10 +816,9 @@ async def get_groupe_detail(groupe_id: str, token: str):
             stagiaire["chapitres_completes"] = 0
             stagiaire["chapitres_debloques"] = 0
         
-        # Get quiz results
-        results = await db.quiz_results.find({"user_id": stagiaire["id"]}, {"_id": 0}).to_list(1000)
-        stagiaire["quizzes_completed"] = len(results)
-        stagiaire["average_score"] = sum([r["percentage"] for r in results]) / len(results) if results else 0
+        qs = quiz_stats.get(stagiaire["id"])
+        stagiaire["quizzes_completed"] = qs["count"] if qs else 0
+        stagiaire["average_score"] = qs["avg_score"] if qs else 0
     
     return {"groupe": groupe, "stagiaires": stagiaires}
 
