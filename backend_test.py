@@ -394,7 +394,74 @@ class FAODSecours73Tester:
             return True
         return False
 
-    def test_email_notification_config(self):
+    def test_stagiaire_progress(self):
+        """Test stagiaire progress endpoint"""
+        if not self.stagiaire_token:
+            print("   ❌ No stagiaire token available")
+            return False
+            
+        # Temporarily store admin token and use stagiaire token
+        temp_token = self.token
+        self.token = self.stagiaire_token
+        
+        success, response = self.run_test(
+            "Stagiaire Progress",
+            "GET",
+            "stagiaire/progress",
+            200
+        )
+        
+        # Restore admin token
+        self.token = temp_token
+        
+        if success:
+            progress = response.get('progress', {})
+            print(f"   Chapters unlocked: {len(progress.get('chapitres_debloques', []))}")
+            print(f"   Chapters completed: {len(progress.get('chapitres_completes', []))}")
+            return True
+        return False
+
+    def test_admin_stats(self):
+        """Test admin dashboard stats endpoint"""
+        success, response = self.run_test(
+            "Admin Dashboard Stats",
+            "GET",
+            "admin/stats",
+            200
+        )
+        if success:
+            print(f"   Total formateurs: {response.get('total_formateurs', 0)}")
+            print(f"   Total stagiaires: {response.get('total_stagiaires', 0)}")
+            print(f"   Total groupes: {response.get('total_groupes', 0)}")
+            print(f"   Total quizzes: {response.get('total_quizzes', 0)}")
+            return True
+        return False
+
+    def test_stagiaire_registration(self):
+        """Test stagiaire registration with group code TEST0000"""
+        # Generate unique email for testing
+        timestamp = datetime.now().strftime("%H%M%S")
+        test_stagiaire = {
+            "email": f"test.stagiaire.{timestamp}@example.com",
+            "password": "TestPass123!",
+            "nom": "Test",
+            "prenom": "Stagiaire",
+            "code_groupe": "TEST0000"
+        }
+        
+        success, response = self.run_test(
+            "Stagiaire Registration with Group Code",
+            "POST",
+            "auth/register",
+            200,
+            data=test_stagiaire
+        )
+        
+        if success and 'token' in response:
+            print(f"   Successfully registered: {response['user']['prenom']} {response['user']['nom']}")
+            print(f"   Group ID: {response['user'].get('groupe_id', 'N/A')}")
+            return True
+        return False
         """Test email notification system configuration"""
         # Check if Resend API key is configured by testing a certificate notification scenario
         print("\n🔍 Testing Email Notification Configuration...")
