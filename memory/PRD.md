@@ -19,7 +19,7 @@ Application de formation aux premiers secours pour le département de Savoie (73
 
 ## What's Been Implemented
 
-### Session 1-3 - Base + Enrichissement
+### Sessions précédentes - Base + Enrichissement
 - ✅ Système d'authentification multi-rôles
 - ✅ Gestion des groupes de formation avec seuil personnalisable
 - ✅ 12 chapitres PSE et 8 chapitres PSC complets (référentiel 2024)
@@ -27,7 +27,7 @@ Application de formation aux premiers secours pour le département de Savoie (73
 - ✅ Progression des stagiaires avec déblocage séquentiel
 - ✅ Logo de l'association intégré
 
-### Session 4 - Certificats, Email, Vidéos (15 Mars 2025)
+### Fonctionnalités Certificats, Email, Vidéos
 - ✅ **Génération PDF certificats** (ReportLab):
   - Endpoint `/api/stagiaire/certificate/pdf`
   - Logo, nom, prénom, score moyen, date
@@ -44,6 +44,13 @@ Application de formation aux premiers secours pour le département de Savoie (73
 - ✅ **Bannière de félicitations** quand certificat débloqué
 - ✅ **Bouton télécharger PDF** dans le modal certificat
 
+### Vérification Déploiement (Janvier 2026)
+- ✅ Health check API réussi
+- ✅ Tous les services opérationnels
+- ✅ Variables d'environnement correctes
+- ✅ CORS configuré correctement
+- ✅ Application prête pour le déploiement
+
 ## Comptes de test
 
 | Rôle | Email | Mot de passe | Notes |
@@ -54,6 +61,17 @@ Application de formation aux premiers secours pour le département de Savoie (73
 | Code groupe | - | TEST0000 | Seuil 0% |
 
 ## API Endpoints
+
+### Authentification
+- `POST /api/auth/register` - Inscription stagiaire avec code groupe
+- `POST /api/auth/register-visiteur` - Inscription visiteur gratuit
+- `POST /api/auth/login` - Connexion
+- `GET /api/auth/me` - Utilisateur courant
+
+### Chapitres
+- `GET /api/chapters?formation_type=PSE` - Chapitres PSE
+- `GET /api/psc/chapters` - Chapitres PSC (gratuit)
+- `GET /api/chapters/{id}` - Détail chapitre
 
 ### Certificats
 - `GET /api/stagiaire/certificate/status` - Vérifier si certificat débloqué
@@ -76,10 +94,28 @@ SENDER_EMAIL="onboarding@resend.dev"
 
 ⚠️ **Note**: Pour envoyer des emails à des destinataires externes, vérifier un domaine sur resend.com/domains et changer `SENDER_EMAIL`.
 
+## État du Déploiement
+
+**Status: PRÊT POUR LE DÉPLOIEMENT**
+
+### Checks passés:
+- ✅ Compilation OK
+- ✅ Variables d'environnement OK
+- ✅ URLs frontend dans .env uniquement
+- ✅ Backend utilise MONGO_URL et DB_NAME depuis .env
+- ✅ CORS autorise les origines de production
+- ✅ Configuration Supervisor valide
+- ✅ Pas de problèmes de dotenv override
+
+### Avertissements (non-bloquants):
+- Scripts utilitaires avec connexions MongoDB hardcodées (pas utilisés en runtime)
+- Dépendances AI/ML dans requirements.txt non utilisées (peuvent être nettoyées)
+
 ## Prioritized Backlog
 
 ### P0 - Critical (FAIT)
-- ✅ Toutes les fonctionnalités demandées
+- ✅ Toutes les fonctionnalités demandées implémentées
+- ✅ Vérification déploiement complète
 
 ### P1 - High Priority
 - [ ] Vérifier domaine Resend pour emails externes
@@ -89,12 +125,14 @@ SENDER_EMAIL="onboarding@resend.dev"
 ### P2 - Medium Priority  
 - [ ] Mode hors-ligne
 - [ ] Rappels email pour stagiaires inactifs
+- [ ] Nettoyer dépendances inutilisées
 
 ### P3 - Low Priority
 - [ ] App mobile native
 - [ ] Intégration HelloAsso
 
 ## Next Tasks
-1. Vérifier domaine sur Resend pour envoyer aux vrais formateurs
-2. Ajouter plus de vidéos pédagogiques
-3. Statistiques avancées pour le dashboard formateur
+1. Déployer l'application via bouton "Deploy" sur Emergent
+2. Vérifier domaine sur Resend pour envoyer aux vrais formateurs
+3. Ajouter plus de vidéos pédagogiques
+4. Statistiques avancées pour le dashboard formateur
