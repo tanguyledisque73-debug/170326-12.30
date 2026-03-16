@@ -77,8 +77,8 @@ class FAODSecours73Tester:
             "",
             200
         )
-        if success:
-            print(f"   Root endpoint accessible")
+        if success and isinstance(response, dict) and 'message' in response:
+            print(f"   Root endpoint accessible: {response.get('message', '')}")
             return True
         return False
 
