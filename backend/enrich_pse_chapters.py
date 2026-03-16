@@ -6,10 +6,16 @@ Référentiel : 2024 PSE.pdf - Recommandations PSE
 
 import os
 from pymongo import MongoClient
+from dotenv import load_dotenv
 
-# Connexion MongoDB
-client = MongoClient('mongodb://localhost:27017')
-db = client['test_database']
+# Charger les variables d'environnement
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
+
+# Connexion MongoDB via variables d'environnement
+MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+DB_NAME = os.environ.get('DB_NAME', 'test_database')
+client = MongoClient(MONGO_URL)
+db = client[DB_NAME]
 
 # Définition complète du contenu PSE selon le référentiel FAOD 2024
 PSE_CHAPTERS_CONTENT = {
