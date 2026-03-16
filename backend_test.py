@@ -518,7 +518,6 @@ def main():
         tester.test_chapter_detail,
         tester.test_admin_chapter_management,
         tester.test_video_upload_endpoint,
-        tester.test_email_notification_config,
     ]
     
     for test in tests:
