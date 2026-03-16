@@ -496,14 +496,29 @@ def main():
         print("❌ Admin login failed, stopping tests")
         return 1
 
-    # Test all features
+    # Test formateur login
+    if not tester.test_formateur_login():
+        print("❌ Formateur login failed, but continuing tests")
+
+    # Test stagiaire login
+    if not tester.test_stagiaire_login():
+        print("❌ Stagiaire login failed, but continuing tests")
+
+    # Test all features from review request
     tests = [
+        tester.test_landing_page_data,
         tester.test_pse_chapters,
         tester.test_psc_chapters,
         tester.test_quiz_endpoints,
-        tester.test_landing_page_data,
-        tester.test_chapter_detail,
+        tester.test_stagiaire_progress,
+        tester.test_admin_stats,
         tester.test_formateur_endpoints,
+        tester.test_stagiaire_registration,
+        tester.test_certificate_pdf_generation,
+        tester.test_chapter_detail,
+        tester.test_admin_chapter_management,
+        tester.test_video_upload_endpoint,
+        tester.test_email_notification_config,
     ]
     
     for test in tests:
