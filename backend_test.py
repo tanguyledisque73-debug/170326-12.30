@@ -196,8 +196,31 @@ class FAODSecours73Tester:
                 return True
         return False
 
+    def test_formateur_login(self):
+        """Test formateur login"""
+        success, response = self.run_test(
+            "Formateur Login",
+            "POST",
+            "auth/login",
+            200,
+            data=self.formateur_credentials
+        )
+        if success and 'token' in response:
+            self.formateur_token = response['token']
+            print(f"   Logged in as formateur: {response['user']['nom']} {response['user']['prenom']}")
+            return True
+        return False
+
     def test_formateur_endpoints(self):
         """Test formateur-specific endpoints"""
+        if not self.formateur_token:
+            print("   ❌ No formateur token available")
+            return False
+            
+        # Temporarily store admin token and use formateur token
+        temp_token = self.token
+        self.token = self.formateur_token
+        
         # Test getting formateur groups
         success, response = self.run_test(
             "Formateur Groups",
@@ -205,6 +228,10 @@ class FAODSecours73Tester:
             "formateur/groupes",
             200
         )
+        
+        # Restore admin token
+        self.token = temp_token
+        
         if success:
             print(f"   Found {len(response) if isinstance(response, list) else 0} groups")
             return True
