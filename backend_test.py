@@ -13,7 +13,7 @@ class FAODSecours73Tester:
         self.tests_passed = 0
         self.admin_credentials = {
             "email": "ledisque.tanguy73@hotmail.com",
-            "password": "NewAdmin123!"
+            "password": "admin_temp_password_change_me"
         }
         self.formateur_credentials = {
             "email": "test@secours73.fr",
