@@ -4,15 +4,20 @@ from datetime import datetime
 import json
 
 class FAODSecours73Tester:
-    def __init__(self, base_url="http://localhost:8001"):
+    def __init__(self, base_url="https://verify-project-2.preview.emergentagent.com"):
         self.base_url = base_url
         self.token = None
         self.stagiaire_token = None
+        self.formateur_token = None
         self.tests_run = 0
         self.tests_passed = 0
         self.admin_credentials = {
             "email": "ledisque.tanguy73@hotmail.com",
-            "password": "admin_temp_password_change_me"
+            "password": "NewAdmin123!"
+        }
+        self.formateur_credentials = {
+            "email": "test@secours73.fr",
+            "password": "test123"
         }
         self.stagiaire_credentials = {
             "email": "stagiaire.test@secours73.fr",
