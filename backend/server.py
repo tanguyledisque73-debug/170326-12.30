@@ -2265,13 +2265,6 @@ async def delete_site_image(
 
 # ============== PASSWORD RESET ==============
 
-import resend
-import asyncio
-
-# Initialize Resend
-resend.api_key = os.environ.get('RESEND_API_KEY', '')
-SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
-
 class PasswordResetRequest(BaseModel):
     email: str
 
@@ -2304,7 +2297,7 @@ async def forgot_password(request: PasswordResetRequest):
     )
     
     # Envoyer l'email
-    reset_url = f"https://emergency-drills.preview.emergentagent.com/reset-password?token={reset_token}"
+    reset_url = f"https://secours73.fr/reset-password?token={reset_token}"
     
     html_content = f"""
     <html>
@@ -2331,16 +2324,7 @@ async def forgot_password(request: PasswordResetRequest):
     </html>
     """
     
-    try:
-        params = {
-            "from": SENDER_EMAIL,
-            "to": [request.email],
-            "subject": "Réinitialisation de votre mot de passe - Secours 73",
-            "html": html_content
-        }
-        await asyncio.to_thread(resend.Emails.send, params)
-    except Exception as e:
-        logger.error(f"Erreur envoi email reset: {str(e)}")
+    await send_email(request.email, "Réinitialisation de votre mot de passe - Secours 73", html_content)
     
     return {"message": "Si cet email existe, un lien de réinitialisation a été envoyé"}
 
