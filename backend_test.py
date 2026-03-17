@@ -1,542 +1,740 @@
+#!/usr/bin/env python3
+"""
+Tests de validation de la base de données FAOD-SECOURS73
+
+Tests selon les critères du review_request:
+1. Authentification admin
+2. Chapitres PSC (8 attendus)
+3. Chapitres PSE (11 attendus)
+4. Quiz PSC (8 attendus)
+5. Quiz PSE (11 attendus)
+6. Comptes test (formateur et stagiaire)
+7. Health check
+"""
+
 import requests
-import sys
-from datetime import datetime
 import json
+import sys
+from typing import Dict, Any, List, Optional
+from dataclasses import dataclass
+from datetime import datetime
 
-class FAODSecours73Tester:
-    def __init__(self, base_url="https://verify-project-2.preview.emergentagent.com"):
-        self.base_url = base_url
-        self.token = None
-        self.stagiaire_token = None
+# Configuration
+BASE_URL = "https://code-migrate-3.preview.emergentagent.com"
+API_BASE = f"{BASE_URL}/api"
+
+@dataclass
+class TestResult:
+    name: str
+    success: bool
+    message: str
+    data: Optional[Any] = None
+    error: Optional[str] = None
+
+class FAODTester:
+    def __init__(self):
+        self.session = requests.Session()
+        self.results: List[TestResult] = []
+        self.admin_token = None
         self.formateur_token = None
-        self.tests_run = 0
-        self.tests_passed = 0
-        self.admin_credentials = {
-            "email": "ledisque.tanguy73@hotmail.com",
-            "password": "admin_temp_password_change_me"
-        }
-        self.formateur_credentials = {
-            "email": "test@secours73.fr",
-            "password": "test123"
-        }
-        self.stagiaire_credentials = {
-            "email": "stagiaire.test@secours73.fr",
-            "password": "test123"
-        }
-
-    def run_test(self, name, method, endpoint, expected_status, data=None, headers=None):
-        """Run a single API test"""
-        url = f"{self.base_url}/api/{endpoint}"
-        test_headers = {'Content-Type': 'application/json'}
-        if headers:
-            test_headers.update(headers)
+        self.stagiaire_token = None
         
-        # Add token as query parameter if available
-        params = {}
-        if self.token:
-            params['token'] = self.token
-        if method == 'GET' and data:
-            params.update(data)
-
-        self.tests_run += 1
-        print(f"\n🔍 Testing {name}...")
-        print(f"   URL: {url}")
+        print(f"🚀 Début des tests de validation FAOD-SECOURS73")
+        print(f"📍 Base URL: {BASE_URL}")
+        print(f"📍 API URL: {API_BASE}")
+        print("="*70)
+    
+    def log_result(self, name: str, success: bool, message: str, data: Any = None, error: str = None):
+        """Enregistre un résultat de test"""
+        result = TestResult(name, success, message, data, error)
+        self.results.append(result)
         
+        status = "✅" if success else "❌"
+        print(f"{status} {name}: {message}")
+        if error and not success:
+            print(f"   ❗ Erreur: {error}")
+        if data and isinstance(data, dict) and "count" in data:
+            print(f"   📊 Données: {data}")
+    
+    def test_health_check(self):
+        """Test 7: Health Check"""
+        print("\n7️⃣ TEST HEALTH CHECK")
         try:
-            if method == 'GET':
-                response = requests.get(url, headers=test_headers, params=params)
-            elif method == 'POST':
-                response = requests.post(url, json=data, headers=test_headers, params=params)
-            elif method == 'PUT':
-                response = requests.put(url, json=data, headers=test_headers, params=params)
-            elif method == 'DELETE':
-                response = requests.delete(url, headers=test_headers, params=params)
-
-            success = response.status_code == expected_status
-            if success:
-                self.tests_passed += 1
-                print(f"✅ Passed - Status: {response.status_code}")
+            # Essayer plusieurs endpoints possibles
+            endpoints = ["/health", "/", "/api/health", "/api/"]
+            
+            for endpoint in endpoints:
                 try:
-                    return success, response.json()
-                except:
-                    return success, response.text
-            else:
-                print(f"❌ Failed - Expected {expected_status}, got {response.status_code}")
-                print(f"   Response: {response.text[:200]}...")
-                return False, {}
-
-        except Exception as e:
-            print(f"❌ Failed - Error: {str(e)}")
-            return False, {}
-
-    def test_root_endpoint(self):
-        """Test backend API root endpoint /api/"""
-        success, response = self.run_test(
-            "Root API Endpoint",
-            "GET",
-            "",
-            200
-        )
-        if success and isinstance(response, dict) and 'message' in response:
-            print(f"   Root endpoint accessible: {response.get('message', '')}")
-            return True
-        return False
-
-    def test_login(self):
-        """Test admin login"""
-        success, response = self.run_test(
-            "Admin Login",
-            "POST",
-            "auth/login",
-            200,
-            data=self.admin_credentials
-        )
-        if success and 'token' in response:
-            self.token = response['token']
-            print(f"   Logged in as: {response['user']['nom']} {response['user']['prenom']}")
-            return True
-        return False
-
-    def test_landing_page_data(self):
-        """Test landing page loads correctly by checking basic endpoints"""
-        # Test chapters endpoint (should work without auth for preview)
-        success, response = self.run_test(
-            "Landing Page - Chapters Preview",
-            "GET",
-            "chapters/preview",
-            200
-        )
-        if success and isinstance(response, list):
-            print(f"   Found {len(response)} preview chapters")
-            return True
-        return False
-
-    def test_pse_chapters(self):
-        """Test PSE chapters API should return 12 chapters"""
-        success, response = self.run_test(
-            "PSE Chapters API",
-            "GET",
-            "chapters",
-            200,
-            data={"formation_type": "PSE"}
-        )
-        if success and isinstance(response, list):
-            pse_chapters = [ch for ch in response if ch.get('formation_type') == 'PSE']
-            print(f"   Found {len(pse_chapters)} PSE chapters")
-            if len(pse_chapters) == 12:
-                print(f"   ✅ PSE has exactly 12 chapters as expected")
-                return True
-            else:
-                print(f"   ⚠️  Expected exactly 12 PSE chapters, got {len(pse_chapters)}")
-                return len(pse_chapters) > 0  # Still pass if we have some chapters
-        return False
-
-    def test_psc_chapters(self):
-        """Test PSC chapters API should return 9 PSC chapters"""
-        success, response = self.run_test(
-            "PSC Chapters API",
-            "GET",
-            "psc/chapters",
-            200
-        )
-        if success and isinstance(response, list):
-            print(f"   Found {len(response)} PSC chapters")
-            if len(response) == 9:
-                print(f"   ✅ PSC has exactly 9 chapters as expected")
-                return True
-            else:
-                print(f"   ⚠️  Expected exactly 9 PSC chapters, got {len(response)}")
-                return len(response) > 0  # Still pass if we have some chapters
-        return False
-
-    def test_quiz_endpoints(self):
-        """Test quiz endpoints - should return 11 quizzes"""
-        # Get all quizzes
-        success, response = self.run_test(
-            "Get All Quizzes",
-            "GET",
-            "quizzes",
-            200
-        )
-        if success and isinstance(response, list):
-            print(f"   Found {len(response)} quizzes")
-            if len(response) == 11:
-                print(f"   ✅ Found exactly 11 quizzes as expected")
-                return True
-            else:
-                print(f"   ⚠️  Expected exactly 11 quizzes, got {len(response)}")
-                return len(response) > 0  # Still pass if we have some quizzes
-        return False
-
-    def test_chapter_detail(self):
-        """Test chapter detail endpoint for video support"""
-        # First get a chapter ID
-        success, chapters = self.run_test(
-            "Get Chapters for Detail Test",
-            "GET",
-            "chapters",
-            200,
-            data={"formation_type": "PSE"}
-        )
-        
-        if success and chapters and len(chapters) > 0:
-            chapter_id = chapters[0]['id']
-            success, response = self.run_test(
-                "Chapter Detail with Video Support",
-                "GET",
-                f"chapters/{chapter_id}",
-                200
+                    url = f"{BASE_URL}{endpoint}"
+                    response = self.session.get(url, timeout=10)
+                    
+                    if response.status_code == 200:
+                        self.log_result(
+                            "Health Check",
+                            True,
+                            f"API accessible via {endpoint} (status: {response.status_code})",
+                            {"endpoint": endpoint, "status": response.status_code}
+                        )
+                        return
+                        
+                except requests.exceptions.RequestException as e:
+                    continue
+            
+            # Si aucun endpoint ne fonctionne
+            self.log_result(
+                "Health Check",
+                False,
+                "Aucun endpoint de health check accessible",
+                error="Tous les endpoints testés ont échoué"
             )
-            if success:
-                # Check if chapter has fiches with video_url support
-                fiches = response.get('fiches', [])
-                video_support = any('video_url' in fiche for fiche in fiches)
-                print(f"   Chapter has {len(fiches)} fiches")
-                print(f"   Video URL support: {'✅ Yes' if video_support else '❌ No'}")
-                return True
-        return False
-
-    def test_formateur_login(self):
-        """Test formateur login"""
-        success, response = self.run_test(
-            "Formateur Login",
-            "POST",
-            "auth/login",
-            200,
-            data=self.formateur_credentials
-        )
-        if success and 'token' in response:
-            self.formateur_token = response['token']
-            print(f"   Logged in as formateur: {response['user']['nom']} {response['user']['prenom']}")
-            return True
-        return False
-
-    def test_formateur_endpoints(self):
-        """Test formateur-specific endpoints"""
-        if not self.formateur_token:
-            print("   ❌ No formateur token available")
-            return False
-            
-        # Temporarily store admin token and use formateur token
-        temp_token = self.token
-        self.token = self.formateur_token
-        
-        # Test getting formateur groups
-        success, response = self.run_test(
-            "Formateur Groups",
-            "GET",
-            "formateur/groupes",
-            200
-        )
-        
-        # Restore admin token
-        self.token = temp_token
-        
-        if success:
-            print(f"   Found {len(response) if isinstance(response, list) else 0} groups")
-            return True
-        return False
-
-    def test_admin_chapter_management(self):
-        """Test admin chapter creation/update for video support"""
-        # Test creating a chapter with video support
-        test_chapter = {
-            "numero": 999,
-            "titre": "TEST Chapter Video Support",
-            "description": "Test chapter for video functionality",
-            "icon": "Video",
-            "formation_type": "PSE",
-            "fiches": [
-                {
-                    "id": "test-fiche-1",
-                    "titre": "Test Fiche with Video",
-                    "contenu": "Test content",
-                    "video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-                }
-            ]
-        }
-        
-        success, response = self.run_test(
-            "Admin Create Chapter with Video",
-            "POST",
-            "admin/chapter",
-            200,
-            data=test_chapter
-        )
-        
-        if success:
-            chapter_id = response.get('id')
-            print(f"   Created test chapter: {chapter_id}")
-            
-            # Clean up - delete the test chapter
-            delete_success, _ = self.run_test(
-                "Cleanup Test Chapter",
-                "DELETE",
-                f"admin/chapter/{chapter_id}",
-                200
-            )
-            if delete_success:
-                print(f"   ✅ Cleaned up test chapter")
-            
-            return True
-        return False
-
-    def test_stagiaire_login(self):
-        """Test stagiaire login"""
-        success, response = self.run_test(
-            "Stagiaire Login",
-            "POST",
-            "auth/login",
-            200,
-            data=self.stagiaire_credentials
-        )
-        if success and 'token' in response:
-            self.stagiaire_token = response['token']
-            print(f"   Logged in as stagiaire: {response['user']['nom']} {response['user']['prenom']}")
-            return True
-        return False
-
-    def test_certificate_pdf_generation(self):
-        """Test certificate PDF generation endpoint"""
-        if not self.stagiaire_token:
-            print("   ❌ No stagiaire token available")
-            return False
-            
-        # First check certificate status using proper token parameter
-        url = f"{self.base_url}/api/stagiaire/certificate/status?token={self.stagiaire_token}"
-        try:
-            response = requests.get(url)
-            success = response.status_code == 200
-            
-            if success:
-                status = response.json()
-                print(f"   Certificate earned: {status.get('earned', False)}")
-                
-                if status.get('earned'):
-                    # Test PDF generation
-                    pdf_url = f"{self.base_url}/api/stagiaire/certificate/pdf?token={self.stagiaire_token}"
-                    pdf_response = requests.get(pdf_url)
-                    if pdf_response.status_code == 200 and pdf_response.headers.get('content-type') == 'application/pdf':
-                        print(f"   ✅ PDF generated successfully ({len(pdf_response.content)} bytes)")
-                        self.tests_passed += 1
-                        self.tests_run += 1
-                        return True
-                    else:
-                        print(f"   ❌ PDF generation failed - Status: {pdf_response.status_code}")
-                        self.tests_run += 1
-                        return False
-                else:
-                    print(f"   ⚠️  Certificate not earned yet, cannot test PDF generation")
-                    self.tests_run += 1
-                    self.tests_passed += 1  # Still count as pass since API works
-                    return True
-            else:
-                print(f"   ❌ Certificate status check failed - Status: {response.status_code}")
-                print(f"   Response: {response.text[:200]}")
-                self.tests_run += 1
-                return False
-                
+                    
         except Exception as e:
-            print(f"   ❌ Certificate status error: {str(e)}")
-            self.tests_run += 1
-            return False
-
-    def test_video_upload_endpoint(self):
-        """Test video upload endpoint for admin/formateur"""
-        if not self.token:
-            print("   ❌ No admin token available")
-            return False
-            
-        # Create a small test video file (mock)
-        test_video_content = b"fake video content for testing"
-        
-        url = f"{self.base_url}/api/upload/video?token={self.token}"
-        files = {'file': ('test_video.mp4', test_video_content, 'video/mp4')}
-        
+            self.log_result(
+                "Health Check",
+                False,
+                "Erreur lors du test health check",
+                error=str(e)
+            )
+    
+    def test_admin_auth(self):
+        """Test 1: Authentification Admin"""
+        print("\n1️⃣ TEST AUTHENTIFICATION ADMIN")
         try:
-            response = requests.post(url, files=files)
-            success = response.status_code == 200
+            url = f"{API_BASE}/auth/login"
+            data = {
+                "email": "ledisque.tanguy73@hotmail.com",
+                "password": "NewAdmin123!"
+            }
             
-            if success:
+            response = self.session.post(url, json=data, timeout=10)
+            
+            if response.status_code == 200:
                 result = response.json()
-                print(f"   ✅ Video upload successful - ID: {result.get('id')}")
-                print(f"   Video URL: {result.get('url')}")
-                self.tests_passed += 1
+                token = result.get("token")
+                user = result.get("user", {})
                 
-                # Test video streaming endpoint
-                video_id = result.get('id')
-                if video_id:
-                    stream_success = self.test_video_streaming(video_id)
-                    return stream_success
+                if token and user.get("role") == "admin":
+                    self.admin_token = token
+                    self.log_result(
+                        "Authentification Admin",
+                        True,
+                        f"Connexion admin réussie - Rôle: {user.get('role')}",
+                        {"email": user.get("email"), "role": user.get("role")}
+                    )
+                else:
+                    self.log_result(
+                        "Authentification Admin",
+                        False,
+                        "Token ou rôle admin manquant dans la réponse",
+                        {"response": result}
+                    )
             else:
-                print(f"   ❌ Video upload failed - Status: {response.status_code}")
-                print(f"   Response: {response.text[:200]}")
+                self.log_result(
+                    "Authentification Admin",
+                    False,
+                    f"Échec connexion admin (status: {response.status_code})",
+                    error=response.text
+                )
                 
-            self.tests_run += 1
-            return success
+        except requests.exceptions.RequestException as e:
+            self.log_result(
+                "Authentification Admin",
+                False,
+                "Erreur de connexion lors de l'authentification admin",
+                error=str(e)
+            )
+    
+    def test_psc_chapters(self):
+        """Test 2: Chapitres PSC"""
+        print("\n2️⃣ TEST CHAPITRES PSC")
+        try:
+            url = f"{API_BASE}/psc/chapters"
+            response = self.session.get(url, timeout=10)
             
-        except Exception as e:
-            print(f"   ❌ Video upload error: {str(e)}")
-            self.tests_run += 1
-            return False
-
-    def test_video_streaming(self, video_id):
-        """Test video streaming endpoint"""
-        success, response = self.run_test(
-            "Video Streaming",
-            "GET",
-            f"videos/{video_id}",
-            200
-        )
-        
-        if success:
-            print(f"   ✅ Video streaming works for ID: {video_id}")
-            return True
-        return False
-
-    def test_stagiaire_progress(self):
-        """Test stagiaire progress endpoint"""
-        if not self.stagiaire_token:
-            print("   ❌ No stagiaire token available")
-            return False
+            if response.status_code == 200:
+                chapters = response.json()
+                
+                if not isinstance(chapters, list):
+                    self.log_result(
+                        "Chapitres PSC",
+                        False,
+                        "Réponse n'est pas une liste",
+                        error=f"Type reçu: {type(chapters)}"
+                    )
+                    return
+                
+                psc_chapters = [ch for ch in chapters if ch.get("formation_type") == "PSC"]
+                
+                if len(psc_chapters) == 8:
+                    # Vérifier la structure des chapitres
+                    valid_chapters = 0
+                    for ch in psc_chapters:
+                        if all(key in ch for key in ["id", "numero", "titre", "formation_type", "fiches"]):
+                            valid_chapters += 1
+                    
+                    if valid_chapters == 8:
+                        self.log_result(
+                            "Chapitres PSC",
+                            True,
+                            f"8 chapitres PSC trouvés avec structure valide",
+                            {"count": len(psc_chapters), "valid_structure": valid_chapters}
+                        )
+                    else:
+                        self.log_result(
+                            "Chapitres PSC",
+                            False,
+                            f"Structure incomplète sur certains chapitres ({valid_chapters}/8)",
+                            {"count": len(psc_chapters), "valid_structure": valid_chapters}
+                        )
+                else:
+                    self.log_result(
+                        "Chapitres PSC",
+                        False,
+                        f"Nombre incorrect de chapitres PSC (trouvés: {len(psc_chapters)}, attendus: 8)",
+                        {"count": len(psc_chapters), "expected": 8}
+                    )
+            else:
+                self.log_result(
+                    "Chapitres PSC",
+                    False,
+                    f"Erreur API (status: {response.status_code})",
+                    error=response.text
+                )
+                
+        except requests.exceptions.RequestException as e:
+            self.log_result(
+                "Chapitres PSC",
+                False,
+                "Erreur de connexion",
+                error=str(e)
+            )
+    
+    def test_pse_chapters(self):
+        """Test 3: Chapitres PSE"""
+        print("\n3️⃣ TEST CHAPITRES PSE")
+        try:
+            url = f"{API_BASE}/chapters?formation_type=PSE"
+            response = self.session.get(url, timeout=10)
             
-        # Temporarily store admin token and use stagiaire token
-        temp_token = self.token
-        self.token = self.stagiaire_token
+            if response.status_code == 200:
+                chapters = response.json()
+                
+                if not isinstance(chapters, list):
+                    self.log_result(
+                        "Chapitres PSE",
+                        False,
+                        "Réponse n'est pas une liste",
+                        error=f"Type reçu: {type(chapters)}"
+                    )
+                    return
+                
+                if len(chapters) == 11:
+                    # Vérifier la structure des chapitres
+                    valid_chapters = 0
+                    for ch in chapters:
+                        if all(key in ch for key in ["id", "numero", "titre", "formation_type", "fiches"]):
+                            if ch.get("formation_type") == "PSE":
+                                valid_chapters += 1
+                    
+                    if valid_chapters == 11:
+                        self.log_result(
+                            "Chapitres PSE",
+                            True,
+                            f"11 chapitres PSE trouvés avec structure valide",
+                            {"count": len(chapters), "valid_structure": valid_chapters}
+                        )
+                    else:
+                        self.log_result(
+                            "Chapitres PSE",
+                            False,
+                            f"Structure ou type incorrect sur certains chapitres ({valid_chapters}/11)",
+                            {"count": len(chapters), "valid_structure": valid_chapters}
+                        )
+                else:
+                    self.log_result(
+                        "Chapitres PSE",
+                        False,
+                        f"Nombre incorrect de chapitres PSE (trouvés: {len(chapters)}, attendus: 11)",
+                        {"count": len(chapters), "expected": 11}
+                    )
+            else:
+                self.log_result(
+                    "Chapitres PSE",
+                    False,
+                    f"Erreur API (status: {response.status_code})",
+                    error=response.text
+                )
+                
+        except requests.exceptions.RequestException as e:
+            self.log_result(
+                "Chapitres PSE",
+                False,
+                "Erreur de connexion",
+                error=str(e)
+            )
+    
+    def test_individual_chapter(self, chapter_id: str, formation_type: str):
+        """Test d'un chapitre individuel"""
+        try:
+            url = f"{API_BASE}/chapters/{chapter_id}"
+            response = self.session.get(url, timeout=10)
+            
+            if response.status_code == 200:
+                chapter = response.json()
+                if chapter.get("formation_type") == formation_type:
+                    return True
+            return False
+        except:
+            return False
+    
+    def test_quiz_psc(self):
+        """Test 4: Quiz PSC"""
+        print("\n4️⃣ TEST QUIZ PSC")
+        try:
+            url = f"{API_BASE}/quizzes"
+            response = self.session.get(url, timeout=10)
+            
+            if response.status_code == 200:
+                all_quizzes = response.json()
+                
+                if not isinstance(all_quizzes, list):
+                    self.log_result(
+                        "Quiz PSC",
+                        False,
+                        "Réponse n'est pas une liste",
+                        error=f"Type reçu: {type(all_quizzes)}"
+                    )
+                    return
+                
+                # Récupérer les chapitres PSC pour filtrer les quiz
+                try:
+                    chapters_response = self.session.get(f"{API_BASE}/psc/chapters", timeout=10)
+                    if chapters_response.status_code == 200:
+                        psc_chapters = chapters_response.json()
+                        psc_chapter_ids = [ch.get("id") for ch in psc_chapters if ch.get("formation_type") == "PSC"]
+                        
+                        psc_quizzes = [q for q in all_quizzes if q.get("chapter_id") in psc_chapter_ids]
+                        
+                        if len(psc_quizzes) == 8:
+                            # Vérifier la structure des quiz
+                            valid_quizzes = 0
+                            total_questions = 0
+                            
+                            for quiz in psc_quizzes:
+                                questions = quiz.get("questions", [])
+                                # Note: 'titre' is not in the actual API structure, removing it from validation
+                                if all(key in quiz for key in ["id", "chapter_id", "questions"]):
+                                    if isinstance(questions, list) and len(questions) > 0:
+                                        # Vérifier structure des questions
+                                        questions_valid = True
+                                        for q in questions:
+                                            if not all(key in q for key in ["id", "question", "type", "correct_answer", "explication"]):
+                                                questions_valid = False
+                                                break
+                                        
+                                        if questions_valid:
+                                            valid_quizzes += 1
+                                            total_questions += len(questions)
+                            
+                            if valid_quizzes == 8:
+                                self.log_result(
+                                    "Quiz PSC",
+                                    True,
+                                    f"8 quiz PSC trouvés avec structure valide, {total_questions} questions total",
+                                    {"count": len(psc_quizzes), "valid_structure": valid_quizzes, "total_questions": total_questions}
+                                )
+                            else:
+                                self.log_result(
+                                    "Quiz PSC",
+                                    False,
+                                    f"Structure incomplète sur certains quiz ({valid_quizzes}/8)",
+                                    {"count": len(psc_quizzes), "valid_structure": valid_quizzes}
+                                )
+                        else:
+                            self.log_result(
+                                "Quiz PSC",
+                                False,
+                                f"Nombre incorrect de quiz PSC (trouvés: {len(psc_quizzes)}, attendus: 8)",
+                                {"count": len(psc_quizzes), "expected": 8}
+                            )
+                    else:
+                        self.log_result(
+                            "Quiz PSC",
+                            False,
+                            "Impossible de récupérer les chapitres PSC pour filtrer les quiz",
+                            error=f"Status chapters: {chapters_response.status_code}"
+                        )
+                except Exception as e:
+                    self.log_result(
+                        "Quiz PSC",
+                        False,
+                        "Erreur lors de la récupération des chapitres PSC",
+                        error=str(e)
+                    )
+            else:
+                self.log_result(
+                    "Quiz PSC",
+                    False,
+                    f"Erreur API quiz (status: {response.status_code})",
+                    error=response.text
+                )
+                
+        except requests.exceptions.RequestException as e:
+            self.log_result(
+                "Quiz PSC",
+                False,
+                "Erreur de connexion",
+                error=str(e)
+            )
+    
+    def test_quiz_pse(self):
+        """Test 5: Quiz PSE"""
+        print("\n5️⃣ TEST QUIZ PSE")
+        try:
+            url = f"{API_BASE}/quizzes"
+            response = self.session.get(url, timeout=10)
+            
+            if response.status_code == 200:
+                all_quizzes = response.json()
+                
+                if not isinstance(all_quizzes, list):
+                    self.log_result(
+                        "Quiz PSE",
+                        False,
+                        "Réponse n'est pas une liste",
+                        error=f"Type reçu: {type(all_quizzes)}"
+                    )
+                    return
+                
+                # Récupérer les chapitres PSE pour filtrer les quiz
+                try:
+                    chapters_response = self.session.get(f"{API_BASE}/chapters?formation_type=PSE", timeout=10)
+                    if chapters_response.status_code == 200:
+                        pse_chapters = chapters_response.json()
+                        pse_chapter_ids = [ch.get("id") for ch in pse_chapters if ch.get("formation_type") == "PSE"]
+                        
+                        pse_quizzes = [q for q in all_quizzes if q.get("chapter_id") in pse_chapter_ids]
+                        
+                        if len(pse_quizzes) == 11:
+                            # Vérifier la structure des quiz
+                            valid_quizzes = 0
+                            total_questions = 0
+                            quizzes_with_4_5_questions = 0
+                            
+                            for quiz in pse_quizzes:
+                                questions = quiz.get("questions", [])
+                                # Note: 'titre' is not in the actual API structure, removing it from validation
+                                if all(key in quiz for key in ["id", "chapter_id", "questions"]):
+                                    if isinstance(questions, list) and len(questions) > 0:
+                                        # Vérifier si le quiz a 4-5 questions (critère spécifique PSE)
+                                        if 4 <= len(questions) <= 5:
+                                            quizzes_with_4_5_questions += 1
+                                        
+                                        # Vérifier structure des questions
+                                        questions_valid = True
+                                        for q in questions:
+                                            if not all(key in q for key in ["id", "question", "type", "correct_answer", "explication"]):
+                                                questions_valid = False
+                                                break
+                                        
+                                        if questions_valid:
+                                            valid_quizzes += 1
+                                            total_questions += len(questions)
+                            
+                            if valid_quizzes == 11:
+                                self.log_result(
+                                    "Quiz PSE",
+                                    True,
+                                    f"11 quiz PSE trouvés avec structure valide, {total_questions} questions total, {quizzes_with_4_5_questions} quiz avec 4-5 questions",
+                                    {
+                                        "count": len(pse_quizzes), 
+                                        "valid_structure": valid_quizzes, 
+                                        "total_questions": total_questions,
+                                        "quizzes_4_5_questions": quizzes_with_4_5_questions
+                                    }
+                                )
+                            else:
+                                self.log_result(
+                                    "Quiz PSE",
+                                    False,
+                                    f"Structure incomplète sur certains quiz ({valid_quizzes}/11)",
+                                    {"count": len(pse_quizzes), "valid_structure": valid_quizzes}
+                                )
+                        else:
+                            self.log_result(
+                                "Quiz PSE",
+                                False,
+                                f"Nombre incorrect de quiz PSE (trouvés: {len(pse_quizzes)}, attendus: 11)",
+                                {"count": len(pse_quizzes), "expected": 11}
+                            )
+                    else:
+                        self.log_result(
+                            "Quiz PSE",
+                            False,
+                            "Impossible de récupérer les chapitres PSE pour filtrer les quiz",
+                            error=f"Status chapters: {chapters_response.status_code}"
+                        )
+                except Exception as e:
+                    self.log_result(
+                        "Quiz PSE",
+                        False,
+                        "Erreur lors de la récupération des chapitres PSE",
+                        error=str(e)
+                    )
+            else:
+                self.log_result(
+                    "Quiz PSE",
+                    False,
+                    f"Erreur API quiz (status: {response.status_code})",
+                    error=response.text
+                )
+                
+        except requests.exceptions.RequestException as e:
+            self.log_result(
+                "Quiz PSE",
+                False,
+                "Erreur de connexion",
+                error=str(e)
+            )
+    
+    def test_formateur_account(self):
+        """Test 6a: Compte formateur test"""
+        print("\n6a️⃣ TEST COMPTE FORMATEUR")
+        try:
+            url = f"{API_BASE}/auth/login"
+            data = {
+                "email": "test@secours73.fr",
+                "password": "test123"
+            }
+            
+            response = self.session.post(url, json=data, timeout=10)
+            
+            if response.status_code == 200:
+                result = response.json()
+                token = result.get("token")
+                user = result.get("user", {})
+                
+                if token and user.get("role") == "formateur":
+                    self.formateur_token = token
+                    self.log_result(
+                        "Compte Formateur Test",
+                        True,
+                        f"Connexion formateur réussie - Rôle: {user.get('role')}",
+                        {"email": user.get("email"), "role": user.get("role")}
+                    )
+                else:
+                    self.log_result(
+                        "Compte Formateur Test",
+                        False,
+                        "Token ou rôle formateur manquant",
+                        {"response": result}
+                    )
+            else:
+                self.log_result(
+                    "Compte Formateur Test",
+                    False,
+                    f"Échec connexion formateur (status: {response.status_code})",
+                    error=response.text
+                )
+                
+        except requests.exceptions.RequestException as e:
+            self.log_result(
+                "Compte Formateur Test",
+                False,
+                "Erreur de connexion",
+                error=str(e)
+            )
+    
+    def test_stagiaire_account(self):
+        """Test 6b: Compte stagiaire test"""
+        print("\n6b️⃣ TEST COMPTE STAGIAIRE")
+        try:
+            url = f"{API_BASE}/auth/login"
+            data = {
+                "email": "stagiaire.test@secours73.fr",
+                "password": "test123"
+            }
+            
+            response = self.session.post(url, json=data, timeout=10)
+            
+            if response.status_code == 200:
+                result = response.json()
+                token = result.get("token")
+                user = result.get("user", {})
+                
+                if token and user.get("role") == "stagiaire":
+                    self.stagiaire_token = token
+                    self.log_result(
+                        "Compte Stagiaire Test",
+                        True,
+                        f"Connexion stagiaire réussie - Rôle: {user.get('role')}",
+                        {"email": user.get("email"), "role": user.get("role"), "groupe_id": user.get("groupe_id")}
+                    )
+                else:
+                    self.log_result(
+                        "Compte Stagiaire Test",
+                        False,
+                        "Token ou rôle stagiaire manquant",
+                        {"response": result}
+                    )
+            else:
+                self.log_result(
+                    "Compte Stagiaire Test",
+                    False,
+                    f"Échec connexion stagiaire (status: {response.status_code})",
+                    error=response.text
+                )
+                
+        except requests.exceptions.RequestException as e:
+            self.log_result(
+                "Compte Stagiaire Test",
+                False,
+                "Erreur de connexion",
+                error=str(e)
+            )
+    
+    def test_individual_quiz_endpoints(self):
+        """Tests supplémentaires sur les endpoints de quiz individuels"""
+        print("\n🔍 TESTS SUPPLÉMENTAIRES - QUIZ INDIVIDUELS")
         
-        success, response = self.run_test(
-            "Stagiaire Progress",
-            "GET",
-            "stagiaire/progress",
-            200
-        )
+        if not hasattr(self, 'sample_chapter_ids'):
+            # Récupérer quelques IDs de chapitres pour tester
+            try:
+                psc_response = self.session.get(f"{API_BASE}/psc/chapters", timeout=10)
+                pse_response = self.session.get(f"{API_BASE}/chapters?formation_type=PSE", timeout=10)
+                
+                self.sample_chapter_ids = []
+                
+                if psc_response.status_code == 200:
+                    psc_chapters = psc_response.json()[:2]  # Prendre 2 premiers
+                    self.sample_chapter_ids.extend([ch.get("id") for ch in psc_chapters])
+                
+                if pse_response.status_code == 200:
+                    pse_chapters = pse_response.json()[:2]  # Prendre 2 premiers
+                    self.sample_chapter_ids.extend([ch.get("id") for ch in pse_chapters])
+                    
+            except:
+                self.sample_chapter_ids = []
         
-        # Restore admin token
-        self.token = temp_token
+        # Tester les endpoints GET /api/quizzes/chapter/{chapter_id}
+        successful_tests = 0
+        for chapter_id in self.sample_chapter_ids[:3]:  # Limiter à 3 tests
+            try:
+                url = f"{API_BASE}/quizzes/chapter/{chapter_id}"
+                response = self.session.get(url, timeout=10)
+                
+                if response.status_code == 200:
+                    quiz = response.json()
+                    if isinstance(quiz, dict) and quiz.get("chapter_id") == chapter_id:
+                        successful_tests += 1
+                        
+            except:
+                continue
         
-        if success:
-            progress = response.get('progress', {})
-            print(f"   Chapters unlocked: {len(progress.get('chapitres_debloques', []))}")
-            print(f"   Chapters completed: {len(progress.get('chapitres_completes', []))}")
-            return True
-        return False
-
-    def test_admin_stats(self):
-        """Test admin dashboard stats endpoint"""
-        success, response = self.run_test(
-            "Admin Dashboard Stats",
-            "GET",
-            "admin/stats",
-            200
-        )
-        if success:
-            print(f"   Total formateurs: {response.get('total_formateurs', 0)}")
-            print(f"   Total stagiaires: {response.get('total_stagiaires', 0)}")
-            print(f"   Total groupes: {response.get('total_groupes', 0)}")
-            print(f"   Total quizzes: {response.get('total_quizzes', 0)}")
-            return True
-        return False
-
-    def test_stagiaire_registration(self):
-        """Test stagiaire registration with group code TEST0000"""
-        # Generate unique email for testing
-        timestamp = datetime.now().strftime("%H%M%S")
-        test_stagiaire = {
-            "email": f"test.stagiaire.{timestamp}@example.com",
-            "password": "TestPass123!",
-            "nom": "Test",
-            "prenom": "Stagiaire",
-            "code_groupe": "TEST0000"
+        if successful_tests > 0:
+            self.log_result(
+                "Quiz par Chapitre",
+                True,
+                f"{successful_tests} endpoints quiz par chapitre fonctionnels",
+                {"successful_tests": successful_tests}
+            )
+        else:
+            self.log_result(
+                "Quiz par Chapitre",
+                False,
+                "Aucun endpoint quiz par chapitre ne fonctionne",
+                {"tested_chapters": len(self.sample_chapter_ids[:3])}
+            )
+    
+    def run_all_tests(self):
+        """Exécute tous les tests dans l'ordre de priorité"""
+        
+        # Tests dans l'ordre de priorité du review_request
+        self.test_admin_auth()
+        self.test_psc_chapters()
+        self.test_pse_chapters()
+        self.test_quiz_psc()
+        self.test_quiz_pse()
+        self.test_formateur_account()
+        self.test_stagiaire_account()
+        self.test_health_check()
+        
+        # Tests supplémentaires
+        self.test_individual_quiz_endpoints()
+        
+        self.print_summary()
+    
+    def print_summary(self):
+        """Affiche un résumé des tests"""
+        print("\n" + "="*70)
+        print("📊 RÉSUMÉ DES TESTS DE VALIDATION")
+        print("="*70)
+        
+        total = len(self.results)
+        success = len([r for r in self.results if r.success])
+        failed = total - success
+        
+        print(f"Total des tests: {total}")
+        print(f"✅ Réussis: {success}")
+        print(f"❌ Échoués: {failed}")
+        print(f"📈 Taux de réussite: {(success/total)*100:.1f}%")
+        
+        if failed > 0:
+            print("\n❌ TESTS ÉCHOUÉS:")
+            for result in self.results:
+                if not result.success:
+                    print(f"   • {result.name}: {result.message}")
+                    if result.error:
+                        print(f"     ❗ {result.error}")
+        
+        print("\n✅ TESTS RÉUSSIS:")
+        for result in self.results:
+            if result.success:
+                print(f"   • {result.name}: {result.message}")
+        
+        # Critères de succès spécifiques
+        print("\n🎯 VALIDATION DES CRITÈRES:")
+        
+        criteria = {
+            "Authentification admin": any(r.name == "Authentification Admin" and r.success for r in self.results),
+            "8 chapitres PSC": any(r.name == "Chapitres PSC" and r.success for r in self.results),
+            "11 chapitres PSE": any(r.name == "Chapitres PSE" and r.success for r in self.results),
+            "8 quiz PSC": any(r.name == "Quiz PSC" and r.success for r in self.results),
+            "11 quiz PSE": any(r.name == "Quiz PSE" and r.success for r in self.results),
+            "Compte formateur": any(r.name == "Compte Formateur Test" and r.success for r in self.results),
+            "Compte stagiaire": any(r.name == "Compte Stagiaire Test" and r.success for r in self.results),
+            "API accessible": any(r.name == "Health Check" and r.success for r in self.results)
         }
         
-        success, response = self.run_test(
-            "Stagiaire Registration with Group Code",
-            "POST",
-            "auth/register",
-            200,
-            data=test_stagiaire
-        )
+        for criterion, met in criteria.items():
+            status = "✅" if met else "❌"
+            print(f"   {status} {criterion}")
         
-        if success and 'token' in response:
-            print(f"   Successfully registered: {response['user']['prenom']} {response['user']['nom']}")
-            print(f"   Group ID: {response['user'].get('groupe_id', 'N/A')}")
-            return True
-        return False
-        """Test email notification system configuration"""
-        # Check if Resend API key is configured by testing a certificate notification scenario
-        print("\n🔍 Testing Email Notification Configuration...")
+        all_critical_passed = all(criteria.values())
         
-        # This is a configuration check - we can't actually send emails in testing
-        # but we can verify the endpoint exists and handles requests properly
+        print("\n🏁 VERDICT FINAL:")
+        if all_critical_passed:
+            print("✅ TOUS LES CRITÈRES DE VALIDATION SONT REMPLIS")
+            print("✅ L'application est prête pour la mise en ligne")
+        else:
+            print("❌ CERTAINS CRITÈRES NE SONT PAS REMPLIS")
+            print("❌ Des corrections sont nécessaires avant la mise en ligne")
         
-        # The email notification is triggered automatically when a stagiaire earns a certificate
-        # We'll check if the system is configured by looking at environment or API response
-        
-        print("   ⚠️  Email notifications require Resend API configuration")
-        print("   ⚠️  Domain verification needed for external emails")
-        print("   ✅ Email notification system is implemented in backend")
-        
-        # This is always considered a pass since the system is implemented
-        self.tests_run += 1
-        self.tests_passed += 1
-        return True
+        print("="*70)
 
 def main():
-    print("🚀 Starting FAOD-SECOURS73 Platform Testing")
-    print("=" * 60)
-    
-    tester = FAODSecours73Tester()
-    
-    # Test key endpoints first based on review request
-    if not tester.test_root_endpoint():
-        print("❌ Root API endpoint failed, but continuing tests")
-
-    # Test admin login first
-    if not tester.test_login():
-        print("❌ Admin login failed, stopping tests")
-        return 1
-
-    # Test formateur login
-    if not tester.test_formateur_login():
-        print("❌ Formateur login failed, but continuing tests")
-
-    # Test stagiaire login
-    if not tester.test_stagiaire_login():
-        print("❌ Stagiaire login failed, but continuing tests")
-
-    # Test all features from review request
-    tests = [
-        tester.test_landing_page_data,
-        tester.test_pse_chapters,
-        tester.test_psc_chapters,
-        tester.test_quiz_endpoints,
-        tester.test_stagiaire_progress,
-        tester.test_admin_stats,
-        tester.test_formateur_endpoints,
-        tester.test_stagiaire_registration,
-        tester.test_certificate_pdf_generation,
-        tester.test_chapter_detail,
-        tester.test_admin_chapter_management,
-        tester.test_video_upload_endpoint,
-    ]
-    
-    for test in tests:
-        try:
-            test()
-        except Exception as e:
-            print(f"❌ Test failed with exception: {str(e)}")
-
-    # Print results
-    print("\n" + "=" * 60)
-    print(f"📊 Tests completed: {tester.tests_passed}/{tester.tests_run}")
-    print(f"Success rate: {(tester.tests_passed/tester.tests_run*100):.1f}%")
-    
-    if tester.tests_passed == tester.tests_run:
-        print("🎉 All tests passed!")
-        return 0
-    else:
-        print("⚠️  Some tests failed - check details above")
-        return 1
+    """Point d'entrée principal"""
+    tester = FAODTester()
+    try:
+        tester.run_all_tests()
+        return 0 if all(r.success for r in tester.results) else 1
+    except KeyboardInterrupt:
+        print("\n⚠️ Tests interrompus par l'utilisateur")
+        return 2
+    except Exception as e:
+        print(f"\n💥 Erreur fatale: {e}")
+        return 3
 
 if __name__ == "__main__":
-    sys.exit(main())
+    exit_code = main()
+    sys.exit(exit_code)
