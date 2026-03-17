@@ -1615,23 +1615,62 @@ async def get_bnssa_chapters(token: str):
 @api_router.post("/seed")
 async def seed_database():
     # Check if already seeded
-    existing = await db.chapters.count_documents({})
-    if existing > 0:
-        return {"message": "Base de données déjà initialisée"}
+    existing_users = await db.users.count_documents({})
+    if existing_users > 0:
+        return {"message": "Base de données déjà initialisée", "users": existing_users}
     
     # Create admin user
     admin_id = str(uuid.uuid4())
     admin = {
         "id": admin_id,
         "email": "ledisque.tanguy73@hotmail.com",
-        "password": hash_password("admin_temp_password_change_me"),
-        "nom": "Le Disqué",
+        "password": hash_password("NewAdmin123!"),
+        "nom": "Ledisque",
         "prenom": "Tanguy",
         "role": "admin",
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "must_set_password": True
+        "verified": True
     }
     await db.users.insert_one(admin)
+    
+    # Create test formateur
+    formateur_id = str(uuid.uuid4())
+    formateur = {
+        "id": formateur_id,
+        "email": "test@secours73.fr",
+        "password": hash_password("test123"),
+        "nom": "Test",
+        "prenom": "Formateur",
+        "role": "formateur",
+        "verified": True
+    }
+    await db.users.insert_one(formateur)
+    
+    # Create test groupe
+    groupe_id = str(uuid.uuid4())
+    groupe = {
+        "id": groupe_id,
+        "nom": "Groupe Test",
+        "code": "TEST0000",
+        "seuil_validation": 0,
+        "formateur_id": formateur_id,
+        "chapitres_obligatoires": []
+    }
+    await db.groupes.insert_one(groupe)
+    
+    # Create test stagiaire
+    stagiaire_id = str(uuid.uuid4())
+    stagiaire = {
+        "id": stagiaire_id,
+        "email": "stagiaire.test@secours73.fr",
+        "password": hash_password("test123"),
+        "nom": "Test",
+        "prenom": "Stagiaire",
+        "role": "stagiaire",
+        "groupe_id": groupe_id,
+        "formation_type": "PSE",
+        "verified": True
+    }
+    await db.users.insert_one(stagiaire)
     
     # Seed PSE chapters based on PSE PDF content
     chapters = [
@@ -2141,11 +2180,53 @@ async def seed_database():
     }
     await db.chapters.insert_one(bnssa_chapter)
     
+    # Run Python scripts to create PSC chapters and quizzes
+    import subprocess
+    subprocess.run(["python3", "/app/create_psc1_complete.py"], check=False)
+    subprocess.run(["python3", "/app/create_all_pse_chapters.py"], check=False)
+    
+    # Create quiz for each chapter
+    all_chapters = await db.chapters.find({}, {"_id": 0}).to_list(100)
+    for chapter in all_chapters:
+        # Create a simple quiz for each chapter
+        quiz = {
+            "id": f"quiz-{chapter['id']}",
+            "chapter_id": chapter["id"],
+            "formation_type": chapter["formation_type"],
+            "questions": [
+                {
+                    "id": f"q1-{chapter['id']}",
+                    "question": f"Question exemple pour {chapter['titre']}",
+                    "type": "qcm",
+                    "options": ["Option A", "Option B", "Option C", "Option D"],
+                    "correct_answer": 1,
+                    "explication": f"Explication pour {chapter['titre']}"
+                },
+                {
+                    "id": f"q2-{chapter['id']}",
+                    "question": f"Affirmation sur {chapter['titre']}",
+                    "type": "vrai_faux",
+                    "correct_answer": True,
+                    "explication": f"Cette affirmation est vraie pour {chapter['titre']}"
+                }
+            ]
+        }
+        await db.quizzes.insert_one(quiz)
+    
+    users_count = await db.users.count_documents({})
+    chapters_count = await db.chapters.count_documents({})
+    quizzes_count = await db.quizzes.count_documents({})
+    
     return {
         "message": "Base de données initialisée avec succès",
         "admin_email": "ledisque.tanguy73@hotmail.com",
-        "admin_temp_password": "admin_temp_password_change_me",
-        "note": "L'administrateur doit changer son mot de passe à la première connexion"
+        "admin_password": "NewAdmin123!",
+        "formateur_email": "test@secours73.fr",
+        "stagiaire_email": "stagiaire.test@secours73.fr",
+        "test_password": "test123",
+        "users_created": users_count,
+        "chapters_created": chapters_count,
+        "quizzes_created": quizzes_count
     }
 
 # ============== SITE SETTINGS ==============
