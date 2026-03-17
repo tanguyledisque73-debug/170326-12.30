@@ -1459,10 +1459,6 @@ async def generate_certificate_pdf(token: str):
 
 async def send_certificate_notification(formateur_email: str, stagiaire_name: str, formation_type: str, groupe_nom: str):
     """Send email notification to formateur when stagiaire earns certificate"""
-    if not resend.api_key:
-        logging.warning("Resend API key not configured, skipping email notification")
-        return False
-    
     html_content = f"""
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="text-align: center; margin-bottom: 20px;">
@@ -1493,20 +1489,11 @@ async def send_certificate_notification(formateur_email: str, stagiaire_name: st
     </div>
     """
     
-    params = {
-        "from": SENDER_EMAIL,
-        "to": [formateur_email],
-        "subject": f"🎓 {stagiaire_name} a validé la FOAD {formation_type} 1",
-        "html": html_content
-    }
-    
-    try:
-        email = await asyncio.to_thread(resend.Emails.send, params)
-        logging.info(f"Certificate notification sent to {formateur_email}")
-        return True
-    except Exception as e:
-        logging.error(f"Failed to send certificate notification: {str(e)}")
-        return False
+    return await send_email(
+        formateur_email,
+        f"🎓 {stagiaire_name} a validé la FOAD {formation_type} 1",
+        html_content
+    )
 
 # ============== VIDEO UPLOAD ==============
 
