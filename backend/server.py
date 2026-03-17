@@ -16,7 +16,9 @@ import random
 import string
 import shutil
 import asyncio
-import resend
+import aiosmtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from io import BytesIO
 
 # PDF Generation
