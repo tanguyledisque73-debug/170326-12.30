@@ -2489,7 +2489,7 @@ async def send_welcome_email_to_stagiaire(stagiaire_email: str, token: str):
         <p><strong>L'équipe pédagogique<br>Secours 73</strong></p>
         <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
         <p style="text-align: center; margin: 20px 0;">
-            <a href="https://emergency-drills.preview.emergentagent.com/login" 
+            <a href="https://secours73.fr/login" 
                style="background-color: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">
                 Accéder à la plateforme
             </a>
@@ -2498,22 +2498,11 @@ async def send_welcome_email_to_stagiaire(stagiaire_email: str, token: str):
     </html>
     """
     
-    try:
-        params = {
-            "from": SENDER_EMAIL,
-            "to": [stagiaire_email],
-            "subject": "Bienvenue sur la plateforme Secours 73",
-            "html": html_content
-        }
-        email = await asyncio.to_thread(resend.Emails.send, params)
-        return {
-            "status": "success",
-            "message": f"Email de bienvenue envoyé à {stagiaire_email}",
-            "email_id": email.get("id")
-        }
-    except Exception as e:
-        logger.error(f"Erreur envoi email bienvenue: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Erreur lors de l'envoi: {str(e)}")
+    success = await send_email(stagiaire_email, "Bienvenue sur la plateforme Secours 73", html_content)
+    if success:
+        return {"status": "success", "message": f"Email de bienvenue envoyé à {stagiaire_email}"}
+    else:
+        raise HTTPException(status_code=500, detail="Erreur lors de l'envoi de l'email")
 
 
 async def send_welcome_email_internal(stagiaire_email: str, stagiaire_prenom: str):
@@ -2532,7 +2521,7 @@ async def send_welcome_email_internal(stagiaire_email: str, stagiaire_prenom: st
         <p><strong>L'équipe pédagogique<br>Secours 73</strong></p>
         <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
         <p style="text-align: center; margin: 20px 0;">
-            <a href="https://emergency-drills.preview.emergentagent.com/login" 
+            <a href="https://secours73.fr/login" 
                style="background-color: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">
                 Accéder à la plateforme
             </a>
@@ -2541,17 +2530,7 @@ async def send_welcome_email_internal(stagiaire_email: str, stagiaire_prenom: st
     </html>
     """
     
-    try:
-        params = {
-            "from": SENDER_EMAIL,
-            "to": [stagiaire_email],
-            "subject": "Bienvenue sur la plateforme Secours 73",
-            "html": html_content
-        }
-        await asyncio.to_thread(resend.Emails.send, params)
-        logger.info(f"Welcome email sent to {stagiaire_email}")
-    except Exception as e:
-        logger.error(f"Failed to send welcome email to {stagiaire_email}: {str(e)}")
+    await send_email(stagiaire_email, "Bienvenue sur la plateforme Secours 73", html_content)
 
 
 @api_router.post("/formateur/send-email")
@@ -2589,7 +2568,7 @@ async def formateur_send_email(
             Formateur - Secours 73
         </p>
         <p style="text-align: center; margin: 20px 0;">
-            <a href="https://emergency-drills.preview.emergentagent.com/login" 
+            <a href="https://secours73.fr/login" 
                style="background-color: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">
                 Accéder à la plateforme
             </a>
@@ -2598,23 +2577,11 @@ async def formateur_send_email(
     </html>
     """
     
-    try:
-        params = {
-            "from": SENDER_EMAIL,
-            "to": [to_email],
-            "subject": subject,
-            "html": html_content,
-            "reply_to": formateur["email"]
-        }
-        email = await asyncio.to_thread(resend.Emails.send, params)
-        return {
-            "status": "success",
-            "message": f"Email envoyé à {to_email}",
-            "email_id": email.get("id")
-        }
-    except Exception as e:
-        logger.error(f"Erreur envoi email: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Erreur lors de l'envoi: {str(e)}")
+    success = await send_email(to_email, subject, html_content)
+    if success:
+        return {"status": "success", "message": f"Email envoyé à {to_email}"}
+    else:
+        raise HTTPException(status_code=500, detail="Erreur lors de l'envoi de l'email")
 
 
 # ============== DOCUMENT MANAGEMENT ==============
