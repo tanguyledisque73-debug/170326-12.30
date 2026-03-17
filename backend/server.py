@@ -39,9 +39,45 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# Resend configuration
-resend.api_key = os.environ.get('RESEND_API_KEY', '')
-SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
+# SMTP Configuration (Infomaniak)
+SMTP_HOST = os.environ.get('SMTP_HOST', 'mail.infomaniak.com')
+SMTP_PORT = int(os.environ.get('SMTP_PORT', '587'))
+SMTP_USER = os.environ.get('SMTP_USER', '')
+SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', '')
+SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'contact@secours73.fr')
+SENDER_NAME = os.environ.get('SENDER_NAME', 'Secours Alpes 73')
+
+# Logger
+logger = logging.getLogger(__name__)
+
+async def send_email(to_email: str, subject: str, html_content: str) -> bool:
+    """Send email via SMTP (Infomaniak)"""
+    if not SMTP_USER or not SMTP_PASSWORD:
+        logger.warning("SMTP credentials not configured, skipping email")
+        return False
+    
+    try:
+        message = MIMEMultipart("alternative")
+        message["From"] = f"{SENDER_NAME} <{SENDER_EMAIL}>"
+        message["To"] = to_email
+        message["Subject"] = subject
+        
+        html_part = MIMEText(html_content, "html")
+        message.attach(html_part)
+        
+        await aiosmtplib.send(
+            message,
+            hostname=SMTP_HOST,
+            port=SMTP_PORT,
+            username=SMTP_USER,
+            password=SMTP_PASSWORD,
+            start_tls=True
+        )
+        logger.info(f"Email sent successfully to {to_email}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send email to {to_email}: {str(e)}")
+        return False
 
 # Upload directory
 UPLOAD_DIR = Path("/app/uploads")
