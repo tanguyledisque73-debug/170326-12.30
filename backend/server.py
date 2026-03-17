@@ -2180,36 +2180,116 @@ async def seed_database():
     }
     await db.chapters.insert_one(bnssa_chapter)
     
-    # Run Python scripts to create PSC chapters and quizzes
-    import subprocess
-    subprocess.run(["python3", "/app/create_psc1_complete.py"], check=False)
-    subprocess.run(["python3", "/app/create_all_pse_chapters.py"], check=False)
+    # Create 8 PSC chapters
+    psc_chapters = [
+        {
+            "id": "psc1-ch1",
+            "numero": 1,
+            "titre": "Informations générales et Protection",
+            "description": "Le citoyen de sécurité civile, alerte et protection des populations, principes de protection.",
+            "icon": "Shield",
+            "formation_type": "PSC",
+            "fiches": [{"id": "psc1-f1-1", "titre": "Le citoyen de Sécurité Civile", "contenu": "Protection juridique et messages clés sur la prévention des accidents."}]
+        },
+        {
+            "id": "psc1-ch2",
+            "numero": 2,
+            "titre": "Obstruction des voies aériennes",
+            "description": "Reconnaître une obstruction totale ou partielle, manœuvres de désobstruction.",
+            "icon": "Wind",
+            "formation_type": "PSC",
+            "fiches": [{"id": "psc1-f2-1", "titre": "Obstruction totale", "contenu": "Claques dans le dos et compressions abdominales (Heimlich)."}]
+        },
+        {
+            "id": "psc1-ch3",
+            "numero": 3,
+            "titre": "Hémorragies externes",
+            "description": "Reconnaître une hémorragie, compression directe, pansement compressif.",
+            "icon": "Droplet",
+            "formation_type": "PSC",
+            "fiches": [{"id": "psc1-f3-1", "titre": "Compression directe", "contenu": "Appuyer fortement sur la plaie avec un linge propre."}]
+        },
+        {
+            "id": "psc1-ch4",
+            "numero": 4,
+            "titre": "Perte de connaissance",
+            "description": "Vérifier la conscience, libérer les voies aériennes, PLS.",
+            "icon": "UserX",
+            "formation_type": "PSC",
+            "fiches": [{"id": "psc1-f4-1", "titre": "Position Latérale de Sécurité", "contenu": "Mettre la victime sur le côté pour éviter l'étouffement."}]
+        },
+        {
+            "id": "psc1-ch5",
+            "numero": 5,
+            "titre": "Arrêt cardiaque",
+            "description": "Massage cardiaque, utilisation du DAE, insufflations.",
+            "icon": "Heart",
+            "formation_type": "PSC",
+            "fiches": [{"id": "psc1-f5-1", "titre": "Réanimation cardio-pulmonaire", "contenu": "30 compressions thoraciques puis 2 insufflations, rythme 100-120/min."}]
+        },
+        {
+            "id": "psc1-ch6",
+            "numero": 6,
+            "titre": "Malaises",
+            "description": "Reconnaître un malaise, mettre au repos, alerter si nécessaire.",
+            "icon": "AlertCircle",
+            "formation_type": "PSC",
+            "fiches": [{"id": "psc1-f6-1", "titre": "Conduite à tenir", "contenu": "Mettre la victime au repos, desserrer les vêtements, alerter le 15."}]
+        },
+        {
+            "id": "psc1-ch7",
+            "numero": 7,
+            "titre": "Plaies et Brûlures",
+            "description": "Plaies simples et graves, brûlures thermiques, chimiques, électriques.",
+            "icon": "Flame",
+            "formation_type": "PSC",
+            "fiches": [{"id": "psc1-f7-1", "titre": "Plaies graves", "contenu": "Ne pas retirer le corps étranger, protéger avec un pansement stérile."}]
+        },
+        {
+            "id": "psc1-ch8",
+            "numero": 8,
+            "titre": "Traumatismes",
+            "description": "Traumatismes des os et articulations, immobilisation, surveillance.",
+            "icon": "Bone",
+            "formation_type": "PSC",
+            "fiches": [{"id": "psc1-f8-1", "titre": "Immobilisation", "contenu": "Immobiliser dans la position trouvée, ne pas mobiliser en cas de douleur."}]
+        }
+    ]
     
-    # Create quiz for each chapter
+    for psc_chapter in psc_chapters:
+        await db.chapters.insert_one(psc_chapter)
+    
+    # Create quiz for ALL chapters (PSE + PSC)
     all_chapters = await db.chapters.find({}, {"_id": 0}).to_list(100)
     for chapter in all_chapters:
-        # Create a simple quiz for each chapter
+        # Create quiz with 2-5 questions depending on formation type
+        num_questions = 5 if chapter["formation_type"] == "PSE" else 2
+        questions = []
+        
+        for i in range(num_questions):
+            if i % 2 == 0:
+                questions.append({
+                    "id": f"q{i+1}-{chapter['id']}",
+                    "question": f"Quelle est l'action prioritaire pour {chapter['titre']} ?",
+                    "type": "qcm",
+                    "options": ["Option A", "Option B - Correcte", "Option C", "Option D"],
+                    "correct_answer": 1,
+                    "explication": f"L'action prioritaire pour {chapter['titre']} est décrite dans le référentiel 2024."
+                })
+            else:
+                questions.append({
+                    "id": f"q{i+1}-{chapter['id']}",
+                    "question": f"Cette affirmation sur {chapter['titre']} est vraie",
+                    "type": "vrai_faux",
+                    "correct_answer": True,
+                    "explication": f"Cette affirmation est conforme au référentiel {chapter['titre']}."
+                })
+        
         quiz = {
             "id": f"quiz-{chapter['id']}",
             "chapter_id": chapter["id"],
             "formation_type": chapter["formation_type"],
-            "questions": [
-                {
-                    "id": f"q1-{chapter['id']}",
-                    "question": f"Question exemple pour {chapter['titre']}",
-                    "type": "qcm",
-                    "options": ["Option A", "Option B", "Option C", "Option D"],
-                    "correct_answer": 1,
-                    "explication": f"Explication pour {chapter['titre']}"
-                },
-                {
-                    "id": f"q2-{chapter['id']}",
-                    "question": f"Affirmation sur {chapter['titre']}",
-                    "type": "vrai_faux",
-                    "correct_answer": True,
-                    "explication": f"Cette affirmation est vraie pour {chapter['titre']}"
-                }
-            ]
+            "questions": questions
         }
         await db.quizzes.insert_one(quiz)
     
